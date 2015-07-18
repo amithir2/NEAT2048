@@ -4,36 +4,21 @@
 -- For SMW, make sure you have a save state named "DP1.state" at the beginning of a level,
 -- and put a copy in both the Lua folder and the root directory of BizHawk.
  
-if gameinfo.getromname() == "Super Mario World (USA)" then
-        Filename = "DP1.state"
-        ButtonNames = {
-                "A",
-                "B",
-                "X",
-                "Y",
-                "Up",
-                "Down",
-                "Left",
-                "Right",
-        }
-elseif gameinfo.getromname() == "Super Mario Bros." then
-        Filename = "SMB1-1.state"
-        ButtonNames = {
-                "A",
-                "B",
-                "Up",
-                "Down",
-                "Left",
-                "Right",
-        }
-end
+-- removed variable Filename
+-- what is Filename?
+ButtonNames = {
+        "Up",
+        "Down",
+        "Left",
+        "Right",
+}
  
-BoxRadius = 6
-InputSize = (BoxRadius*2+1)*(BoxRadius*2+1)
- 
-Inputs = InputSize+1
+BoxRadius = 1
+Inputs = 16
 Outputs = #ButtonNames
- 
+
+Grid = {{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0}}
+
 Population = 300
 DeltaDisjoint = 2.0
 DeltaWeights = 0.4
@@ -51,139 +36,171 @@ StepSize = 0.1
 DisableMutationChance = 0.4
 EnableMutationChance = 0.2
  
-TimeoutConstant = 20
- 
 MaxNodes = 1000000
- 
-function getPositions()
-        if gameinfo.getromname() == "Super Mario World (USA)" then
-                marioX = memory.read_s16_le(0x94)
-                marioY = memory.read_s16_le(0x96)
-               
-                local layer1x = memory.read_s16_le(0x1A);
-                local layer1y = memory.read_s16_le(0x1C);
-               
-                screenX = marioX-layer1x
-                screenY = marioY-layer1y
-        elseif gameinfo.getromname() == "Super Mario Bros." then
-                marioX = memory.readbyte(0x6D) * 0x100 + memory.readbyte(0x86)
-                marioY = memory.readbyte(0x03B8)+16
-       
-                screenX = memory.readbyte(0x03AD)
-                screenY = memory.readbyte(0x03B8)
-        end
+
+function printArray()
+        print(table.concat(Grid[1], "\t"))
+        print(table.concat(Grid[2], "\t"))
+        print(table.concat(Grid[3], "\t"))
+        print(table.concat(Grid[4], "\t"))
 end
- 
-function getTile(dx, dy)
-        if gameinfo.getromname() == "Super Mario World (USA)" then
-                x = math.floor((marioX+dx+8)/16)
-                y = math.floor((marioY+dy)/16)
-               
-                return memory.readbyte(0x1C800 + math.floor(x/0x10)*0x1B0 + y*0x10 + x%0x10)
-        elseif gameinfo.getromname() == "Super Mario Bros." then
-                local x = marioX + dx + 8
-                local y = marioY + dy - 16
-                local page = math.floor(x/256)%2
- 
-                local subx = math.floor((x%256)/16)
-                local suby = math.floor((y - 32)/16)
-                local addr = 0x500 + page*13*16+suby*16+subx
-               
-                if suby >= 13 or suby < 0 then
-                        return 0
-                end
-               
-                if memory.readbyte(addr) ~= 0 then
-                        return 1
-                else
-                        return 0
-                end
-        end
+
+function simulateClear()
+        Grid = {{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0}}
 end
- 
-function getSprites()
-        if gameinfo.getromname() == "Super Mario World (USA)" then
-                local sprites = {}
-                for slot=0,11 do
-                        local status = memory.readbyte(0x14C8+slot)
-                        if status ~= 0 then
-                                spritex = memory.readbyte(0xE4+slot) + memory.readbyte(0x14E0+slot)*256
-                                spritey = memory.readbyte(0xD8+slot) + memory.readbyte(0x14D4+slot)*256
-                                sprites[#sprites+1] = {["x"]=spritex, ["y"]=spritey}
-                        end
-                end            
-               
-                return sprites
-        elseif gameinfo.getromname() == "Super Mario Bros." then
-                local sprites = {}
-                for slot=0,4 do
-                        local enemy = memory.readbyte(0xF+slot)
-                        if enemy ~= 0 then
-                                local ex = memory.readbyte(0x6E + slot)*0x100 + memory.readbyte(0x87+slot)
-                                local ey = memory.readbyte(0xCF + slot)+24
-                                sprites[#sprites+1] = {["x"]=ex,["y"]=ey}
+
+function max(t, fn)
+    if #t == 0 then return nil, nil end
+    local key, value = 1, t[1]
+    for i = 2, #t do
+        if fn(value, t[i]) then
+            key, value = i, t[i]
+        end
+    end
+    return key, value
+end
+
+function simulateUpdate() 
+        for y=1,4,1 do 
+                for x=1,4,1 do
+                        if Grid[y][x] == 0 then
+                                Grid[y][x] = 2
+                                return true
                         end
                 end
-               
-                return sprites
         end
+        return false
+
 end
- 
-function getExtendedSprites()
-        if gameinfo.getromname() == "Super Mario World (USA)" then
-                local extended = {}
-                for slot=0,11 do
-                        local number = memory.readbyte(0x170B+slot)
-                        if number ~= 0 then
-                                spritex = memory.readbyte(0x171F+slot) + memory.readbyte(0x1733+slot)*256
-                                spritey = memory.readbyte(0x1715+slot) + memory.readbyte(0x1729+slot)*256
-                                extended[#extended+1] = {["x"]=spritex, ["y"]=spritey}
-                        end
-                end            
-               
-                return extended
-        elseif gameinfo.getromname() == "Super Mario Bros." then
-                return {}
+
+function moveToLeft(row)
+        for i=4,1,-1 do
+                if row[i] == 0 then 
+                        table.remove(row, i)
+                end
         end
+        for i=1,#row-1,1 do 
+                local j = i+1
+                if row[i] == row[j] then
+                        row[i] = row[i]*2
+                        row[j] = 0
+                end
+        end
+        for i=4,1,-1 do
+                if row[i] == 0 then 
+                        table.remove(row, i)
+                end
+        end
+        while #row ~= 4 do
+                table.insert(row, #row+1, 0)
+        end
+        return row
+end
+
+function moveToRight(row)
+        for i=4,1,-1 do
+                if row[i] == 0 then 
+                        table.remove(row, i)
+                end
+        end
+        for i=#row,2,-1 do 
+                local j = i-1
+                if row[i] == row[j] then
+                        row[i] = row[i]*2
+                        row[j] = 0
+                end
+        end
+        for i=4,1,-1 do
+                if row[i] == 0 then 
+                        table.remove(row, i)
+                end
+        end
+        while #row ~= 4 do
+                table.insert(row, 1, 0)
+        end
+        return row
+end
+
+function simulateSendResults(controller) 
+        if controller["P1 Left"] then
+                Grid[1] = moveToLeft(Grid[1])
+                Grid[2] = moveToLeft(Grid[2])
+                Grid[3] = moveToLeft(Grid[3])
+                Grid[4] = moveToLeft(Grid[4])
+                return
+        end
+        if controller["P1 Right"] then
+                Grid[1] = moveToRight(Grid[1])
+                Grid[2] = moveToRight(Grid[2])
+                Grid[3] = moveToRight(Grid[3])
+                Grid[4] = moveToRight(Grid[4])
+                return
+        end
+        if controller["P1 Up"] then
+                -- print("start")
+                -- printArray()
+                col1 = {Grid[1][1], Grid[2][1], Grid[3][1], Grid[4][1]}
+                col2 = {Grid[1][2], Grid[2][2], Grid[3][2], Grid[4][2]}
+                col3 = {Grid[1][3], Grid[2][3], Grid[3][3], Grid[4][3]}
+                col4 = {Grid[1][4], Grid[2][4], Grid[3][4], Grid[4][4]}
+                col1 = moveToLeft(col1)
+                col2 = moveToLeft(col2)
+                col3 = moveToLeft(col3)
+                col4 = moveToLeft(col4)
+                
+                simulateClear()
+                for i=1,4,1 do
+                        Grid[i][1] = col1[i]
+                        Grid[i][2] = col2[i]
+                        Grid[i][3] = col3[i]
+                        Grid[i][4] = col4[i]
+                end
+                -- printArray()
+                -- print("stop")
+                
+                return
+        end
+        if controller["P1 Down"] then
+                -- print("start")
+                -- printArray()
+                col1 = {Grid[1][1], Grid[2][1], Grid[3][1], Grid[4][1]}
+                col2 = {Grid[1][2], Grid[2][2], Grid[3][2], Grid[4][2]}
+                col3 = {Grid[1][3], Grid[2][3], Grid[3][3], Grid[4][3]}
+                col4 = {Grid[1][4], Grid[2][4], Grid[3][4], Grid[4][4]}
+                col1 = moveToRight(col1)
+                col2 = moveToRight(col2)
+                col3 = moveToRight(col3)
+                col4 = moveToRight(col4)
+                simulateClear()
+                for i=1,4,1 do
+                        Grid[i][1] = col1[i]
+                        Grid[i][2] = col2[i]
+                        Grid[i][3] = col3[i]
+                        Grid[i][4] = col4[i]
+                end
+                -- printArray()
+                -- print("stop")
+                return
+        end
+
+end
+
+function getTile(y, x)
+        if math.min(x, y) < 0 or math.max(x, y) >= 4 then 
+                return 0
+        end
+        return Grid[y][x]
 end
  
 function getInputs()
-        getPositions()
-       
-        sprites = getSprites()
-        extended = getExtendedSprites()
        
         local inputs = {}
        
-        for dy=-BoxRadius*16,BoxRadius*16,16 do
-                for dx=-BoxRadius*16,BoxRadius*16,16 do
-                        inputs[#inputs+1] = 0
-                       
-                        tile = getTile(dx, dy)
-                        if tile == 1 and marioY+dy < 0x1B0 then
-                                inputs[#inputs] = 1
-                        end
-                       
-                        for i = 1,#sprites do
-                                distx = math.abs(sprites[i]["x"] - (marioX+dx))
-                                disty = math.abs(sprites[i]["y"] - (marioY+dy))
-                                if distx <= 8 and disty <= 8 then
-                                        inputs[#inputs] = -1
-                                end
-                        end
- 
-                        for i = 1,#extended do
-                                distx = math.abs(extended[i]["x"] - (marioX+dx))
-                                disty = math.abs(extended[i]["y"] - (marioY+dy))
-                                if distx < 8 and disty < 8 then
-                                        inputs[#inputs] = -1
-                                end
-                        end
+        for y=1,4,1 do
+                for x=1,4,1 do
+                        inputs[#inputs+1] = getTile(y, x)
                 end
-        end
-       
-        --mariovx = memory.read_s8(0x7B)
-        --mariovy = memory.read_s8(0x7D)
+        end 
        
         return inputs
 end
@@ -328,10 +345,10 @@ function generateNetwork(genome)
         genome.network = network
 end
  
+ -- update this logic to 2048 movement logic
 function evaluateNetwork(network, inputs)
-        table.insert(inputs, 1)
         if #inputs ~= Inputs then
-                console.writeline("Incorrect number of neural network inputs.")
+                print("Incorrect number of neural network inputs.")
                 return {}
         end
        
@@ -805,7 +822,7 @@ function newGeneration()
        
         pool.generation = pool.generation + 1
        
-        writeFile("backup." .. pool.generation .. "." .. forms.gettext(saveLoadFile))
+        -- writeFile("backup." .. pool.generation .. "." .. forms.gettext(saveLoadFile))
 end
        
 function initializePool()
@@ -819,27 +836,23 @@ function initializePool()
         initializeRun()
 end
  
-function clearJoypad()
-        controller = {}
-        for b = 1,#ButtonNames do
-                controller["P1 " .. ButtonNames[b]] = false
-        end
-        joypad.set(controller)
-end
- 
 function initializeRun()
-        savestate.load(Filename);
-        rightmost = 0
+        highestSquare = 0
         pool.currentFrame = 0
-        timeout = TimeoutConstant
-        clearJoypad()
+
+        -- clear results (don't send results to game)
+        -- simulateClear()
        
         local species = pool.species[pool.currentSpecies]
         local genome = species.genomes[pool.currentGenome]
+
+        -- generate network and neurons and etc
         generateNetwork(genome)
+        -- evaluate valid current moves
         evaluateCurrent()
 end
  
+-- what is this logic even? 
 function evaluateCurrent()
         local species = pool.species[pool.currentSpecies]
         local genome = species.genomes[pool.currentGenome]
@@ -856,7 +869,6 @@ function evaluateCurrent()
                 controller["P1 Down"] = false
         end
  
-        joypad.set(controller)
 end
  
 if pool == nil then
@@ -881,133 +893,6 @@ function fitnessAlreadyMeasured()
         local genome = species.genomes[pool.currentGenome]
        
         return genome.fitness ~= 0
-end
- 
-function displayGenome(genome)
-        local network = genome.network
-        local cells = {}
-        local i = 1
-        local cell = {}
-        for dy=-BoxRadius,BoxRadius do
-                for dx=-BoxRadius,BoxRadius do
-                        cell = {}
-                        cell.x = 50+5*dx
-                        cell.y = 70+5*dy
-                        cell.value = network.neurons[i].value
-                        cells[i] = cell
-                        i = i + 1
-                end
-        end
-        local biasCell = {}
-        biasCell.x = 80
-        biasCell.y = 110
-        biasCell.value = network.neurons[Inputs].value
-        cells[Inputs] = biasCell
-       
-        for o = 1,Outputs do
-                cell = {}
-                cell.x = 220
-                cell.y = 30 + 8 * o
-                cell.value = network.neurons[MaxNodes + o].value
-                cells[MaxNodes+o] = cell
-                local color
-                if cell.value > 0 then
-                        color = 0xFF0000FF
-                else
-                        color = 0xFF000000
-                end
-                gui.drawText(223, 24+8*o, ButtonNames[o], color, 9)
-        end
-       
-        for n,neuron in pairs(network.neurons) do
-                cell = {}
-                if n > Inputs and n <= MaxNodes then
-                        cell.x = 140
-                        cell.y = 40
-                        cell.value = neuron.value
-                        cells[n] = cell
-                end
-        end
-       
-        for n=1,4 do
-                for _,gene in pairs(genome.genes) do
-                        if gene.enabled then
-                                local c1 = cells[gene.into]
-                                local c2 = cells[gene.out]
-                                if gene.into > Inputs and gene.into <= MaxNodes then
-                                        c1.x = 0.75*c1.x + 0.25*c2.x
-                                        if c1.x >= c2.x then
-                                                c1.x = c1.x - 40
-                                        end
-                                        if c1.x < 90 then
-                                                c1.x = 90
-                                        end
-                                       
-                                        if c1.x > 220 then
-                                                c1.x = 220
-                                        end
-                                        c1.y = 0.75*c1.y + 0.25*c2.y
-                                       
-                                end
-                                if gene.out > Inputs and gene.out <= MaxNodes then
-                                        c2.x = 0.25*c1.x + 0.75*c2.x
-                                        if c1.x >= c2.x then
-                                                c2.x = c2.x + 40
-                                        end
-                                        if c2.x < 90 then
-                                                c2.x = 90
-                                        end
-                                        if c2.x > 220 then
-                                                c2.x = 220
-                                        end
-                                        c2.y = 0.25*c1.y + 0.75*c2.y
-                                end
-                        end
-                end
-        end
-       
-        gui.drawBox(50-BoxRadius*5-3,70-BoxRadius*5-3,50+BoxRadius*5+2,70+BoxRadius*5+2,0xFF000000, 0x80808080)
-        for n,cell in pairs(cells) do
-                if n > Inputs or cell.value ~= 0 then
-                        local color = math.floor((cell.value+1)/2*256)
-                        if color > 255 then color = 255 end
-                        if color < 0 then color = 0 end
-                        local opacity = 0xFF000000
-                        if cell.value == 0 then
-                                opacity = 0x50000000
-                        end
-                        color = opacity + color*0x10000 + color*0x100 + color
-                        gui.drawBox(cell.x-2,cell.y-2,cell.x+2,cell.y+2,opacity,color)
-                end
-        end
-        for _,gene in pairs(genome.genes) do
-                if gene.enabled then
-                        local c1 = cells[gene.into]
-                        local c2 = cells[gene.out]
-                        local opacity = 0xA0000000
-                        if c1.value == 0 then
-                                opacity = 0x20000000
-                        end
-                       
-                        local color = 0x80-math.floor(math.abs(sigmoid(gene.weight))*0x80)
-                        if gene.weight > 0 then
-                                color = opacity + 0x8000 + 0x10000*color
-                        else
-                                color = opacity + 0x800000 + 0x100*color
-                        end
-                        gui.drawLine(c1.x+1, c1.y, c2.x-3, c2.y, color)
-                end
-        end
-       
-        gui.drawBox(49,71,51,78,0x00000000,0x80FF0000)
-       
-        if forms.ischecked(showMutationRates) then
-                local pos = 100
-                for mutation,rate in pairs(genome.mutationRates) do
-                        gui.drawText(100, pos, mutation .. ": " .. rate, 0xFF000000, 10)
-                        pos = pos + 8
-                end
-        end
 end
  
 function writeFile(filename)
@@ -1128,79 +1013,182 @@ function onExit()
         forms.destroy(form)
 end
  
+
+ function calcFitness()
+  local highNum = highestNum()
+  local mono = monotonicity()
+  local numFree = freeTiles()
+
+  return highNum * 10 + mono + numFree
+
+end
+
+function highestNum()
+  local highest = -1
+  for i = 1,tablelength(Grid) do
+    if max(Grid[i], function(a,b) return a < b end) > highest then
+      highest = max(Grid[i], function(a,b) return a < b end)
+    end
+  end
+  return math.log10(highest)
+end
+
+function monotonicity()
+
+  local totals = {0,0,0,0}
+
+  for x=1,4,1 do
+    local current = 1
+    local nextVal = current+1
+    while nextVal < 4 do
+      while nextVal < 4 and Grid[x][nextVal] == 0 do
+        nextVal = nextVal + 1
+      end
+      if nextVal >= 4 then
+        nextVal = nextVal - 1
+      end
+      local currentValue = -1
+      if Grid[x][current] ~= 0 then
+        currentValue = math.log10(Grid[x][current]) / math.log(2)
+      end
+      if Grid[x][current] == 0 then
+        currentValue = 0
+      end
+      local nextValue = -1
+      if Grid[x][nextVal] ~= 0 then
+        nextValue = math.log10(Grid[x][nextVal]) / math.log(2)
+      end
+      if Grid[x][nextVal] == 0 then
+        nextValue = 0
+      end
+      if currentValue > nextValue then
+        totals[1] = totals[1] + nextValue - currentValue
+      end
+      if nextValue > currentValue then
+        totals[2] = totals[2] + currentValue - nextValue
+      end
+      current = nextVal
+      nextVal = nextVal + 1
+    end
+  end
+
+  for y=1,4,1 do
+    local current = 1
+    local nextVal = current+1
+    while nextVal < 4 do
+      while nextVal < 4 and Grid[nextVal][y] == 0 do
+        nextVal = nextVal + 1
+      end
+      if nextVal >= 4 then
+        nextVal = nextVal - 1
+      end
+      local currentValue = -1
+      if Grid[current][y] ~= 0 then
+        currentValue = math.log10(Grid[current][y]) / math.log(2)
+      end
+      if Grid[current][y] == 0 then
+        currentValue = 0
+      end
+      local nextValue = -1
+      if Grid[current][y] ~= 0 then
+        nextValue = math.log10(Grid[current][y]) / math.log(2)
+      end
+      if Grid[current][y] == 0 then
+        nextValue = 0
+      end
+      if currentValue > nextValue then
+        totals[3] = totals[3] + nextValue - currentValue
+      end
+      if nextValue > currentValue then
+        totals[4] = totals[4] + currentValue - nextValue
+      end
+      current = nextVal
+      nextVal = nextVal + 1
+    end
+  end
+
+  return math.max(totals[1], totals[2]) + math.max(totals[3], totals[4])
+
+end
+
+function freeTiles()
+  local count = 0
+  for i = 1,tablelength(Grid) do
+    for j=1,tablelength(Grid[i]) do
+      if j == 0 then
+        count = count + 1
+      end
+    end
+  end
+  return count
+end
+
+function tablelength(T)
+  local count = 0
+  for _ in pairs(T) do count = count + 1 end
+  return count
+end
+
+
 writeFile("temp.pool")
  
-event.onexit(onExit)
+ -- TODO add an exit event
+-- event.onexit(onExit)
  
-form = forms.newform(200, 260, "Fitness")
-maxFitnessLabel = forms.label(form, "Max Fitness: " .. math.floor(pool.maxFitness), 5, 8)
-showNetwork = forms.checkbox(form, "Show Map", 5, 30)
-showMutationRates = forms.checkbox(form, "Show M-Rates", 5, 52)
-restartButton = forms.button(form, "Restart", initializePool, 5, 77)
-saveButton = forms.button(form, "Save", savePool, 5, 102)
-loadButton = forms.button(form, "Load", loadPool, 80, 102)
-saveLoadFile = forms.textbox(form, Filename .. ".pool", 170, 25, nil, 5, 148)
-saveLoadLabel = forms.label(form, "Save/Load:", 5, 129)
-playTopButton = forms.button(form, "Play Top", playTop, 5, 170)
-hideBanner = forms.checkbox(form, "Hide Banner", 5, 190)
- 
- 
-while true do
-        local backgroundColor = 0xD0FFFFFF
-        if not forms.ischecked(hideBanner) then
-                gui.drawBox(0, 0, 300, 26, backgroundColor, backgroundColor)
-        end
- 
+
+-- prevGrid = Grid
+stillPlaying = true
+bestScore = 0
+numberOfMoves = 0
+while stillPlaying do
+        numberOfMoves = numberOfMoves + 1
+
         local species = pool.species[pool.currentSpecies]
         local genome = species.genomes[pool.currentGenome]
+
+        -- this evaluates the current frame and determines possible outputs
+        evaluateCurrent()
+        
+        -- need to send results to game
+        simulateSendResults(controller)
+        -- printArray()
+
+
+
+        _, row1 = max(Grid[1], function(a,b) return a < b end)
+        _, row2 = max(Grid[2], function(a,b) return a < b end)
+        _, row3 = max(Grid[3], function(a,b) return a < b end)
+        _, row4 = max(Grid[4], function(a,b) return a < b end)
+        bestScore = math.max(row1, row2, row3, row4) 
+
+
+        -- replace with our fitness heuristic
+        local fitness = calcFitness()
+        -- we won so add 1000 to fitness
+        -- if highestSquare == 2048 then
+        --         fitness = fitness + 1000
+        -- end
+        -- if fitness == 0 then
+        --         fitness = -1
+        -- end
+        genome.fitness = fitness
+
+
        
-        if forms.ischecked(showNetwork) then
-                displayGenome(genome)
+        if fitness > pool.maxFitness then
+                pool.maxFitness = fitness
+                -- print("Max Fitness: " .. math.floor(pool.maxFitness))
         end
        
-        if pool.currentFrame%5 == 0 then
-                evaluateCurrent()
+       -- print("Gen " .. pool.generation .. " species " .. pool.currentSpecies .. " genome " .. pool.currentGenome .. " fitness: " .. fitness)
+        pool.currentSpecies = 1
+        pool.currentGenome = 1
+
+        -- while fitness not equal to 0, keep iterating
+        while fitnessAlreadyMeasured() do
+                nextGenome()
         end
- 
-        joypad.set(controller)
- 
-        getPositions()
-        if marioX > rightmost then
-                rightmost = marioX
-                timeout = TimeoutConstant
-        end
-       
-        timeout = timeout - 1
-       
-       
-        local timeoutBonus = pool.currentFrame / 4
-        if timeout + timeoutBonus <= 0 then
-                local fitness = rightmost - pool.currentFrame / 2
-                if gameinfo.getromname() == "Super Mario World (USA)" and rightmost > 4816 then
-                        fitness = fitness + 1000
-                end
-                if gameinfo.getromname() == "Super Mario Bros." and rightmost > 3186 then
-                        fitness = fitness + 1000
-                end
-                if fitness == 0 then
-                        fitness = -1
-                end
-                genome.fitness = fitness
-               
-                if fitness > pool.maxFitness then
-                        pool.maxFitness = fitness
-                        forms.settext(maxFitnessLabel, "Max Fitness: " .. math.floor(pool.maxFitness))
-                        writeFile("backup." .. pool.generation .. "." .. forms.gettext(saveLoadFile))
-                end
-               
-                console.writeline("Gen " .. pool.generation .. " species " .. pool.currentSpecies .. " genome " .. pool.currentGenome .. " fitness: " .. fitness)
-                pool.currentSpecies = 1
-                pool.currentGenome = 1
-                while fitnessAlreadyMeasured() do
-                        nextGenome()
-                end
-                initializeRun()
-        end
+        initializeRun()
  
         local measured = 0
         local total = 0
@@ -1212,13 +1200,18 @@ while true do
                         end
                 end
         end
-        if not forms.ischecked(hideBanner) then
-                gui.drawText(0, 0, "Gen " .. pool.generation .. " species " .. pool.currentSpecies .. " genome " .. pool.currentGenome .. " (" .. math.floor(measured/total*100) .. "%)", 0xFF000000, 11)
-                gui.drawText(0, 12, "Fitness: " .. math.floor(rightmost - (pool.currentFrame) / 2 - (timeout + timeoutBonus)*2/3), 0xFF000000, 11)
-                gui.drawText(100, 12, "Max Fitness: " .. math.floor(pool.maxFitness), 0xFF000000, 11)
-        end
+        -- print("Gen " .. pool.generation .. " species " .. pool.currentSpecies .. " genome " .. pool.currentGenome .. " (" .. math.floor(measured/total*100) .. "%)")
+        -- print("Fitness: " .. math.floor(highestSquare - (pool.currentFrame) / 2))
+        -- print("Max Fitness: " .. math.floor(pool.maxFitness))
                
         pool.currentFrame = pool.currentFrame + 1
  
-        emu.frameadvance();
+        -- iterate to next frame somehow
+        stillPlaying = simulateUpdate()
+        if stillPlaying == false then
+                print("Score: " .. bestScore .. " Number of Moves: " .. numberOfMoves)
+                simulateClear()
+                numberOfMoves = 0
+                stillPlaying = true
+        end
 end
