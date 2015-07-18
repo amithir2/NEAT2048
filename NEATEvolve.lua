@@ -50,14 +50,14 @@ function simulateClear()
 end
 
 function max(t, fn)
-    if #t == 0 then return nil, nil end
+    if #t == 0 then return nil end
     local key, value = 1, t[1]
     for i = 2, #t do
         if fn(value, t[i]) then
             key, value = i, t[i]
         end
     end
-    return key, value
+    return value
 end
 
 function simulateUpdate() 
@@ -859,15 +859,16 @@ function evaluateCurrent()
  
         inputs = getInputs()
         controller = evaluateNetwork(genome.network, inputs)
+        -- print(controll)
        
-        if controller["P1 Left"] and controller["P1 Right"] then
-                controller["P1 Left"] = false
-                controller["P1 Right"] = false
-        end
-        if controller["P1 Up"] and controller["P1 Down"] then
-                controller["P1 Up"] = false
-                controller["P1 Down"] = false
-        end
+        -- if controller["P1 Left"] and controller["P1 Right"] then
+        --         controller["P1 Left"] = false
+        --         controller["P1 Right"] = false
+        -- end
+        -- if controller["P1 Up"] and controller["P1 Down"] then
+        --         controller["P1 Up"] = false
+        --         controller["P1 Down"] = false
+        -- end
  
 end
  
@@ -1018,7 +1019,6 @@ end
   local highNum = highestNum()
   local mono = monotonicity()
   local numFree = freeTiles()
-
   return highNum * 10 + mono + numFree
 
 end
@@ -1155,29 +1155,27 @@ while stillPlaying do
 
 
 
-        _, row1 = max(Grid[1], function(a,b) return a < b end)
-        _, row2 = max(Grid[2], function(a,b) return a < b end)
-        _, row3 = max(Grid[3], function(a,b) return a < b end)
-        _, row4 = max(Grid[4], function(a,b) return a < b end)
+        row1 = max(Grid[1], function(a,b) return a < b end)
+        row2 = max(Grid[2], function(a,b) return a < b end)
+        row3 = max(Grid[3], function(a,b) return a < b end)
+        row4 = max(Grid[4], function(a,b) return a < b end)
         bestScore = math.max(row1, row2, row3, row4) 
 
 
-        -- replace with our fitness heuristic
+        -- our fitness heuristic
         local fitness = calcFitness()
-        -- we won so add 1000 to fitness
-        -- if highestSquare == 2048 then
-        --         fitness = fitness + 1000
-        -- end
-        -- if fitness == 0 then
-        --         fitness = -1
-        -- end
+        -- print("Max Fitness: " .. fitness)
+        if fitness == 0 then
+                fitness = -1
+        end
         genome.fitness = fitness
+
 
 
        
         if fitness > pool.maxFitness then
                 pool.maxFitness = fitness
-                -- print("Max Fitness: " .. math.floor(pool.maxFitness))
+                -- 
         end
        
        -- print("Gen " .. pool.generation .. " species " .. pool.currentSpecies .. " genome " .. pool.currentGenome .. " fitness: " .. fitness)
