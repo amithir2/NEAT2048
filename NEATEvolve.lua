@@ -4,21 +4,36 @@
 -- For SMW, make sure you have a save state named "DP1.state" at the beginning of a level,
 -- and put a copy in both the Lua folder and the root directory of BizHawk.
  
--- removed variable Filename
--- what is Filename?
-ButtonNames = {
-        "Up",
-        "Down",
-        "Left",
-        "Right",
-}
+if gameinfo.getromname() == "Super Mario World (USA)" then
+        Filename = "DP1.state"
+        ButtonNames = {
+                "A",
+                "B",
+                "X",
+                "Y",
+                "Up",
+                "Down",
+                "Left",
+                "Right",
+        }
+elseif gameinfo.getromname() == "Super Mario Bros." then
+        Filename = "SMB1-1.state"
+        ButtonNames = {
+                "A",
+                "B",
+                "Up",
+                "Down",
+                "Left",
+                "Right",
+        }
+end
  
-BoxRadius = 1
-Inputs = 16
+BoxRadius = 6
+InputSize = (BoxRadius*2+1)*(BoxRadius*2+1)
+ 
+Inputs = InputSize+1
 Outputs = #ButtonNames
-
-Array = [[0,0,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,0]]
-
+ 
 Population = 300
 DeltaDisjoint = 2.0
 DeltaWeights = 0.4
@@ -60,10 +75,30 @@ function getPositions()
 end
  
 function getTile(dx, dy)
-        -- is min and max a thing in lua?
-        if min(dx, dy) < 0 or max(dx, min) >= 4 then 
-                return 0
-        return Array[dx][dy]
+        if gameinfo.getromname() == "Super Mario World (USA)" then
+                x = math.floor((marioX+dx+8)/16)
+                y = math.floor((marioY+dy)/16)
+               
+                return memory.readbyte(0x1C800 + math.floor(x/0x10)*0x1B0 + y*0x10 + x%0x10)
+        elseif gameinfo.getromname() == "Super Mario Bros." then
+                local x = marioX + dx + 8
+                local y = marioY + dy - 16
+                local page = math.floor(x/256)%2
+ 
+                local subx = math.floor((x%256)/16)
+                local suby = math.floor((y - 32)/16)
+                local addr = 0x500 + page*13*16+suby*16+subx
+               
+                if suby >= 13 or suby < 0 then
+                        return 0
+                end
+               
+                if memory.readbyte(addr) ~= 0 then
+                        return 1
+                else
+                        return 0
+                end
+        end
 end
  
 function getSprites()
@@ -145,7 +180,10 @@ function getInputs()
                                 end
                         end
                 end
-        end 
+        end
+       
+        --mariovx = memory.read_s8(0x7B)
+        --mariovy = memory.read_s8(0x7D)
        
         return inputs
 end
