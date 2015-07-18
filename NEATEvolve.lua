@@ -61,16 +61,22 @@ function max(t, fn)
 end
 
 function simulateUpdate() 
+        local list = {}
         for y=1,4,1 do 
                 for x=1,4,1 do
                         if Grid[y][x] == 0 then
-                                Grid[y][x] = 2
-                                return true
+                                table.insert(list, 1, {x, y})
                         end
                 end
         end
+        if #list > 0 then
+            tbl = list[ math.random( #list ) ]
+            a = tbl[1]
+            b = tbl[2]
+            Grid[b][a] = math.random(2) * 2
+            return true
+        end
         return false
-
 end
 
 function moveToLeft(row)
