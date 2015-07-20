@@ -60,6 +60,17 @@ function max(t, fn)
     return value
 end
 
+function maxWithIdx(t, fn)
+    if #t == 0 then return nil end
+    local key, value = 1, t[1]
+    for i = 2, #t do
+        if fn(value, t[i]) then
+            key, value = i, t[i]
+        end
+    end
+    return key, value
+end
+
 function simulateUpdate() 
         local list = {}
         for y=1,4,1 do 
@@ -127,67 +138,112 @@ function moveToRight(row)
         return row
 end
 
+function left() 
+        Grid[1] = moveToLeft(Grid[1])
+        Grid[2] = moveToLeft(Grid[2])
+        Grid[3] = moveToLeft(Grid[3])
+        Grid[4] = moveToLeft(Grid[4])
+end
+
+function right() 
+        Grid[1] = moveToRight(Grid[1])
+        Grid[2] = moveToRight(Grid[2])
+        Grid[3] = moveToRight(Grid[3])
+        Grid[4] = moveToRight(Grid[4])
+end
+
+function up()
+        -- print("start")
+        -- printArray()
+        col1 = {Grid[1][1], Grid[2][1], Grid[3][1], Grid[4][1]}
+        col2 = {Grid[1][2], Grid[2][2], Grid[3][2], Grid[4][2]}
+        col3 = {Grid[1][3], Grid[2][3], Grid[3][3], Grid[4][3]}
+        col4 = {Grid[1][4], Grid[2][4], Grid[3][4], Grid[4][4]}
+        col1 = moveToLeft(col1)
+        col2 = moveToLeft(col2)
+        col3 = moveToLeft(col3)
+        col4 = moveToLeft(col4)
+        
+        simulateClear()
+        for i=1,4,1 do
+                Grid[i][1] = col1[i]
+                Grid[i][2] = col2[i]
+                Grid[i][3] = col3[i]
+                Grid[i][4] = col4[i]
+        end
+        -- printArray()
+        -- print("stop")
+end
+
+function down()
+        -- print("start")
+        -- printArray()
+        col1 = {Grid[1][1], Grid[2][1], Grid[3][1], Grid[4][1]}
+        col2 = {Grid[1][2], Grid[2][2], Grid[3][2], Grid[4][2]}
+        col3 = {Grid[1][3], Grid[2][3], Grid[3][3], Grid[4][3]}
+        col4 = {Grid[1][4], Grid[2][4], Grid[3][4], Grid[4][4]}
+        col1 = moveToRight(col1)
+        col2 = moveToRight(col2)
+        col3 = moveToRight(col3)
+        col4 = moveToRight(col4)
+        simulateClear()
+        for i=1,4,1 do
+                Grid[i][1] = col1[i]
+                Grid[i][2] = col2[i]
+                Grid[i][3] = col3[i]
+                Grid[i][4] = col4[i]
+        end
+        -- printArray()
+        -- print("stop")
+end
+
+function table.contains(t, value)
+        for _,v in pairs(t) do
+                if (v == value) then
+                        return true
+                end
+        end
+        return false
+end
+
 function simulateSendResults(controller) 
-        if controller["P1 Left"] then
-                Grid[1] = moveToLeft(Grid[1])
-                Grid[2] = moveToLeft(Grid[2])
-                Grid[3] = moveToLeft(Grid[3])
-                Grid[4] = moveToLeft(Grid[4])
-                return
-        end
-        if controller["P1 Right"] then
-                Grid[1] = moveToRight(Grid[1])
-                Grid[2] = moveToRight(Grid[2])
-                Grid[3] = moveToRight(Grid[3])
-                Grid[4] = moveToRight(Grid[4])
-                return
-        end
-        if controller["P1 Up"] then
-                -- print("start")
-                -- printArray()
-                col1 = {Grid[1][1], Grid[2][1], Grid[3][1], Grid[4][1]}
-                col2 = {Grid[1][2], Grid[2][2], Grid[3][2], Grid[4][2]}
-                col3 = {Grid[1][3], Grid[2][3], Grid[3][3], Grid[4][3]}
-                col4 = {Grid[1][4], Grid[2][4], Grid[3][4], Grid[4][4]}
-                col1 = moveToLeft(col1)
-                col2 = moveToLeft(col2)
-                col3 = moveToLeft(col3)
-                col4 = moveToLeft(col4)
-                
-                simulateClear()
-                for i=1,4,1 do
-                        Grid[i][1] = col1[i]
-                        Grid[i][2] = col2[i]
-                        Grid[i][3] = col3[i]
-                        Grid[i][4] = col4[i]
+
+        -- tie
+        if FailCount > 1 or math.max(controller["P1 Left"], controller["P1 Right"], controller["P1 Up"], controller["P1 Down"]) <= 0 then 
+                rand = math.random()
+                if rand < 0.25 then
+                        left()
+                        PrevMove = 3
+                elseif rand < 0.50 then
+                        right()
+                        PrevMove = 4
+                elseif rand < 0.75 then
+                        up()
+                        PrevMove = 1
+                else 
+                        down()
+                        PrevMove = 2
                 end
-                -- printArray()
-                -- print("stop")
-                
                 return
         end
-        if controller["P1 Down"] then
-                -- print("start")
-                -- printArray()
-                col1 = {Grid[1][1], Grid[2][1], Grid[3][1], Grid[4][1]}
-                col2 = {Grid[1][2], Grid[2][2], Grid[3][2], Grid[4][2]}
-                col3 = {Grid[1][3], Grid[2][3], Grid[3][3], Grid[4][3]}
-                col4 = {Grid[1][4], Grid[2][4], Grid[3][4], Grid[4][4]}
-                col1 = moveToRight(col1)
-                col2 = moveToRight(col2)
-                col3 = moveToRight(col3)
-                col4 = moveToRight(col4)
-                simulateClear()
-                for i=1,4,1 do
-                        Grid[i][1] = col1[i]
-                        Grid[i][2] = col2[i]
-                        Grid[i][3] = col3[i]
-                        Grid[i][4] = col4[i]
-                end
-                -- printArray()
-                -- print("stop")
-                return
+
+
+        -- we have a "better" move
+        idx, value = maxWithIdx(controller)
+        if idx == "P1 Left" then
+                left()
+                PrevMove = 3
+        elseif idx == "P1 Right" then
+                right()
+                PrevMove = 4
+        elseif idx == "P1 Up" then
+                up()
+                PrevMove = 1
+        elseif idx == "P1 Down" then
+                down()
+                PrevMove = 2
         end
+
 
 end
 
@@ -378,11 +434,7 @@ function evaluateNetwork(network, inputs)
         local outputs = {}
         for o=1,Outputs do
                 local button = "P1 " .. ButtonNames[o]
-                if network.neurons[MaxNodes+o].value > 0 then
-                        outputs[button] = true
-                else
-                        outputs[button] = false
-                end
+                outputs[button] = network.neurons[MaxNodes+o].value
         end
        
         return outputs
@@ -865,17 +917,18 @@ function evaluateCurrent()
  
         inputs = getInputs()
         controller = evaluateNetwork(genome.network, inputs)
-        -- print(controll)
-       
-        -- if controller["P1 Left"] and controller["P1 Right"] then
-        --         controller["P1 Left"] = false
-        --         controller["P1 Right"] = false
+        -- keys = {"P1 Left", "P1 Right", "P1 Up", "P1 Down"}
+        -- goodMoves = {}
+        -- for i=1,4,1 do 
+        --         if controller[keys[i]] then
+        --                 table.insert(goodMoves, keys[i])
+        --         end
         -- end
-        -- if controller["P1 Up"] and controller["P1 Down"] then
-        --         controller["P1 Up"] = false
-        --         controller["P1 Down"] = false
+        -- if #goodMoves > 0 then
+        --         print(table.concat(goodMoves, ","))
+        -- else 
+        --         print("No moves")
         -- end
- 
 end
  
 if pool == nil then
@@ -1025,7 +1078,7 @@ end
   local highNum = highestNum()
   local mono = monotonicity()
   local numFree = freeTiles()
-  return highNum * 10 + mono + numFree
+  return highNum * 100 + mono + numFree
 
 end
 
@@ -1146,20 +1199,39 @@ writeFile("temp.pool")
 stillPlaying = true
 bestScore = 0
 numberOfMoves = 0
+Failed = {}
+PrevMove = -1
+FailCount = -1
+-- iterations = 0
 while stillPlaying do
+        -- iterations = iterations + 1
         numberOfMoves = numberOfMoves + 1
+        -- if iterations > 100 then 
+        --         break
+        -- end
+
+        -- printArray()
+        -- print("")
 
         local species = pool.species[pool.currentSpecies]
         local genome = species.genomes[pool.currentGenome]
 
-        -- this evaluates the current frame and determines possible outputs
-        evaluateCurrent()
+        prevGrid = Grid
         
-        -- need to send results to game
-        simulateSendResults(controller)
+        Failed = {}
+        while prevGrid == Grid do
+                -- this evaluates the current frame and determines possible outputs
+                evaluateCurrent()       
+                
+                FailCount = FailCount + 1
+                -- need to send results to game
+                simulateSendResults(controller)
+
+                table.insert(Failed, PrevMove)
+                
+        end
+        FailCount = -1
         -- printArray()
-
-
 
         row1 = max(Grid[1], function(a,b) return a < b end)
         row2 = max(Grid[2], function(a,b) return a < b end)
@@ -1181,7 +1253,6 @@ while stillPlaying do
        
         if fitness > pool.maxFitness then
                 pool.maxFitness = fitness
-                -- 
         end
        
        -- print("Gen " .. pool.generation .. " species " .. pool.currentSpecies .. " genome " .. pool.currentGenome .. " fitness: " .. fitness)
